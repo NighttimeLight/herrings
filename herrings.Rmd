@@ -1,0 +1,43 @@
+---
+title: "sledzie"
+output: 
+  html_document:
+    toc: true
+    theme: lumen
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=F}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r libraries, warning=F, message=F}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+library(plotly)
+library(shiny)
+#library(flexdashboard)
+#library(ggsci)
+#TODO
+```
+
+```{r seed}
+set.seed(5)
+```
+
+```{r load_herrings, cache=F}
+df_sample <- read.csv("sledzie.csv", nrows = 100, na.strings = "?")
+df_src <- read.csv("sledzie.csv",
+                   nrows = 60000, na.strings = "?",
+                   colClasses = sapply(df_sample, class))
+df_src
+```
+
+
+
+
+
+
+
