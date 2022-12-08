@@ -10,17 +10,19 @@ date: "`r Sys.Date()`"
 ```{r setup, include=F}
 knitr::opts_chunk$set(echo = FALSE)
 knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
 ```
 
 ```{r libraries, warning=F, message=F}
 library(dplyr)
 library(tidyr)
+library(caret)
 library(ggplot2)
 library(corrplot)
 library(gganimate)
 library(knitr)
-library(plotly)
-library(shiny)
+#library(plotly)
+#library(shiny)
 #library(flexdashboard)
 #library(ggsci)
 ```
@@ -29,6 +31,12 @@ library(shiny)
 set.seed(5)
 theme_set(theme_classic())
 ```
+
+# Summary
+
+If you can see this
+
+close your eyes
 
 # Load data
 
@@ -168,8 +176,8 @@ df_grouped %>%
   corrplot(method ="circle")
 ```
 
-##
-Visible collelation groups and 
+## {.unlisted .unnumbered}
+Visible correlation groups and 
 
 * `fbar`, `recr`,`cumf`, `totaln`
 * `length` and time measures
@@ -205,6 +213,80 @@ df_grouped %>%
     labs(color = "More than 50")
 ```
 
+# Regression model
+
+```{r set_train}
+df_grouped %>% 
+#  group_by(-n_rows) %>% 
+#  expand(n_rows = seq(1:n_rows)) %>% 
+#  mutate(n_rows = max(n_rows)) %>% 
+#  ungroup() %>% 
+  do(.,.) -> df_pred
+```
+
+```{r reg_param}
+trainIdx <- 
+    createDataPartition(
+        y = df_pred$length,
+        p = .75,
+        list = FALSE)
+
+training <- df_pred[ trainIdx,]
+testing  <- df_pred[-trainIdx,]
+
+ctrl <- trainControl(
+    method = "repeatedcv",
+    number = 10,
+    repeats = 10)
+```
+
+## Predicted model
+
+```{r train_reg}
+
+fit <- train(length ~ .,
+             data = training,
+             method = "glm",
+             #lm, glm, ridge, lasso
+             trControl = ctrl,
+             preProcess = c('scale', 'center'))
+fit
+```
+
+## Variables importance
+
+Importance of each variable in predicted model
+
+```{r plt_imp}
+ggplot(varImp(fit))
+```
+
+Most significant measures:
+
+* `cumf`
+* `fbar`
+* `sst`
+* `totaln`
+
+## Prediction measures on testing set
+
+```{r pred_meas}
+
+postResample(pred = predict(fit, newdata = testing),
+             obs = testing$length)
+```
+
+## Predicted model
+
+```{r plt_pred}
+df_grouped %>% 
+  mutate(trend_line = 
+           predict(loess(length~time,.))) %>% 
+  mutate(pred = predict(fit, newdata = df_pred)) %>% 
+  ggplot(aes(x=time, y=length)) +
+    geom_point() +
+    geom_line(aes(y = pred), linewidth=1, color="blue")
+```
 
 
 
