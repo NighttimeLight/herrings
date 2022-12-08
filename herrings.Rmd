@@ -9,12 +9,15 @@ date: "`r Sys.Date()`"
 
 ```{r setup, include=F}
 knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(message = FALSE)
 ```
 
 ```{r libraries, warning=F, message=F}
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(corrplot)
+library(gganimate)
 library(knitr)
 library(plotly)
 library(shiny)
@@ -22,8 +25,9 @@ library(shiny)
 #library(ggsci)
 ```
 
-```{r seed}
+```{r setup_late}
 set.seed(5)
+theme_set(theme_classic())
 ```
 
 # Load data
@@ -38,18 +42,28 @@ rm(df_sample)
 tibble(df_src)
 ```
 
-### NA values in each column
+Loaded `r nrow(df_src)` rows with `r ncol(df_src)` columns from source.
 
-```{r}
+## NA values in each column
+
+```{r NA_in_each}
 df_src %>% 
   summarise(across(everything(), function(x) sum(is.na(x)))) %>% 
   mutate(Total = sum(.)) %>% 
   kable()
 ```
 
-### Test grouping by totaln
+## Distinct values in each column
 
-```{r}
+```{r dist_in_each}
+df_src %>% 
+  summarise(across(everything(), n_distinct)) %>% 
+  kable()
+```
+
+## Test grouping years by totaln
+
+```{r test_group}
   df_src %>%
   group_by(totaln, month) %>%
   summarise(across(everything(), n_distinct), .groups = "drop") %>%
@@ -108,17 +122,88 @@ df_src %>%
 
 ```{r make_months}
 df_wTime %>% 
-  group_by(time) %>% 
-  summarise(across(everything(), mean, na.rm=TRUE), n_rows = n(), .groups = "drop") %>%
+  group_by(time) %>%
+  summarise(across(everything(), mean, na.rm=TRUE), n_rows = n(), .groups = "drop") %>% 
   do(.,.) -> df_grouped
 ```
 
+## Data distribution
 
-```{r}
+```{r Distributions}
 df_grouped %>% 
-  ggplot(aes(x=time, y=length)) + geom_point()
+  select(-c(time, year, month, row_id)) %>% 
+  stack() %>% 
+  ggplot(aes(y=values)) +
+    geom_boxplot() +
+    facet_wrap(~ind, scales = "free_y", ncol = 8) + 
+    scale_x_continuous(breaks = NULL)
 ```
 
+## Correlation {.tabset .tabset-fade .tabset-pills}
+
+### Pearson
+
+```{r cor_pearson}
+df_grouped %>% 
+  as.data.frame() %>% 
+  cor(method = "pearson") %>% 
+  corrplot(method ="circle")
+```
+
+### Kendall
+
+```{r cor_kendall}
+df_grouped %>% 
+  as.data.frame() %>% 
+  cor(method = "kendall") %>% 
+  corrplot(method ="circle")
+```
+
+### Spearman
+
+```{r cor_spearman}
+df_grouped %>% 
+  as.data.frame() %>% 
+  cor(method = "spearman") %>% 
+  corrplot(method ="circle")
+```
+
+##
+Visible collelation groups and 
+
+* `fbar`, `recr`,`cumf`, `totaln`
+* `length` and time measures
+* `sst`, `length`
+* `cfin1`, `cfin2`
+* `chel1`, `chel2`,`clop1`, `clop2`
+* `nao` with different measures (`chel1`, `clop1`, `sst`)
+
+## Herring length over years {.tabset .tabset-fade .tabset-pills}
+
+### All observations
+
+```{r animate_time}
+df_grouped %>% 
+  mutate(trend_line = 
+           predict(loess(length~time,.))) %>% 
+  ggplot(aes(x=time, y=length)) +
+    geom_point() +
+    geom_line(aes(y=trend_line), linewidth=2, color="orange") 
+#    transition_reveal(time) +
+#    ease_aes("linear")
+```
+
+### All vs. >50
+
+Number of records influence on results
+
+```{r compare_nrow}
+df_grouped %>%
+  mutate(over50 = (n_rows > 50)) %>%
+  ggplot(aes(x=time, y=length, color = over50)) + 
+    geom_point() +
+    labs(color = "More than 50")
+```
 
 
 
