@@ -34,13 +34,22 @@ theme_set(theme_classic())
 
 # Summary
 
-If you can see this
+Source data contained not many NA values. Based on initial processing years were assumed from `totaln` and position in source. Records were aggregated to the level of separate months each value being the mean of aggregated rows.
 
-close your eyes
+Such data showed noticeable linear correlation across groups of catch measures (`fbar`, `recr`,`cumf`, `totaln`) and plankton amount (`cfin1`, `cfin2`, `chel1`, `chel2`,`clop1`, `clop2`) and between `length`, `sst` and time.
+
+Constructed regression model showed that the most significant for the `length` of herrings were
+
+* local catch intensity
+* total number of herrings catched
+* sea surface temperature
+
+Based on the distribution of these measures, it can be concluded that crucial influence on decrease in herrings length over last years had increase in sea surface temperature.
+
 
 # Load data
 
-```{r load_herrings, cache=F}
+```{r load_herrings, cache=T}
 df_sample <- read.csv("sledzie.csv", nrows = 100, na.strings = "?")
 df_src <- read.csv("sledzie.csv",
                    nrows = 60000, na.strings = "?",
@@ -195,10 +204,9 @@ df_grouped %>%
   mutate(trend_line = 
            predict(loess(length~time,.))) %>% 
   ggplot(aes(x=time, y=length)) +
-    geom_point() +
-    geom_line(aes(y=trend_line), linewidth=2, color="orange") 
-#    transition_reveal(time) +
-#    ease_aes("linear")
+    geom_point(aes(group = seq_along(time))) + 
+    geom_line(aes(y=trend_line), linewidth=2, color="orange") +
+    transition_reveal(time)
 ```
 
 ### All vs. >50
@@ -247,7 +255,6 @@ ctrl <- trainControl(
 fit <- train(length ~ .,
              data = training,
              method = "glm",
-             #lm, glm, ridge, lasso
              trControl = ctrl,
              preProcess = c('scale', 'center'))
 fit
@@ -261,12 +268,25 @@ Importance of each variable in predicted model
 ggplot(varImp(fit))
 ```
 
-Most significant measures:
+Most significant measures are:
 
 * `cumf`
 * `fbar`
 * `sst`
 * `totaln`
+
+Their distribution over time:
+
+```{r dist_over_time}
+df_grouped %>% 
+  pivot_longer(c(length,cumf, fbar, sst,totaln),
+               names_to = "measure", values_to = "value") %>% 
+  ggplot(aes(y=value, x=time)) +
+    facet_grid(measure ~ ., scales = "free") +
+    geom_point() + 
+    geom_smooth() +
+    ylab("")
+```
 
 ## Prediction measures on testing set
 
