@@ -1,5 +1,5 @@
 ---
-title: "sledzie"
+title: "Herrings"
 output: 
   html_document:
     toc: true
@@ -20,22 +20,104 @@ library(plotly)
 library(shiny)
 #library(flexdashboard)
 #library(ggsci)
-#TODO
 ```
 
 ```{r seed}
 set.seed(5)
 ```
 
+# Load data
+
 ```{r load_herrings, cache=F}
 df_sample <- read.csv("sledzie.csv", nrows = 100, na.strings = "?")
 df_src <- read.csv("sledzie.csv",
                    nrows = 60000, na.strings = "?",
-                   colClasses = sapply(df_sample, class))
-df_src
+                   colClasses = sapply(df_sample, class)) %>% 
+  rename(row_id = X, month = xmonth) %>% relocate(month)
+rm(df_sample)
+tibble(df_src)
+```
+
+### NA values in each column
+
+```{r}
+df_src %>% 
+  summarise(across(everything(), function(x) sum(is.na(x)))) %>% 
+  mutate(Total = sum(.)) %>% 
+  kable()
+```
+
+### Test grouping by totaln
+
+```{r}
+  df_src %>%
+  group_by(totaln, month) %>%
+  summarise(across(everything(), n_distinct), .groups = "drop") %>%
+  summarise(across(everything(), function(x) sprintf("[%g-%g]", min(x), max(x)))) %>% 
+bind_rows(.,
+  df_src %>%
+  na.omit() %>% 
+  group_by(totaln, month) %>%
+  summarise(across(everything(), n_distinct), .groups = "drop") %>%
+  summarise(across(everything(), function(x) sprintf("[%g-%g]", min(x), max(x))))
+) %>% 
+bind_rows(.,
+  df_src %>%
+  group_by(totaln, month) %>%
+  summarise(across(everything(), function(x) sum(is.na(x))), .groups = "drop") %>%
+  summarise(across(everything(), function(x) sprintf("[%g-%g]", min(x), max(x))))
+) %>% 
+bind_rows(.,
+  df_src %>%
+  group_by(totaln, month) %>%
+  summarise(across(everything(), function(x) length(x)-sum(is.na(x))), .groups = "drop") %>%
+  summarise(across(everything(), function(x) sprintf("[%g-%g]", min(x), max(x))))
+) %>% 
+  select(-totaln, -month) %>% 
+bind_cols(
+  "across each distinct month" = c(
+    "distinct values",
+    "-//- no NA rows",
+    "NA values",
+    "not NA values"),.
+) %>% 
+  kable()
+```
+
+# Processing
+
+Based on the data assumed that
+
+* years result from unique values of totaln
+  (equivalent to `fbar`, `recr`, `cumf`, due to only one distinct value for each group)
+* following years derieved from average row id
+
+```{r retrieve_time}
+df_src %>%
+  group_by(totaln) %>%
+  summarise(across(everything(), mean, na.rm=TRUE), .groups = "drop") %>%
+  arrange(row_id) %>% 
+  mutate(year = row_number()) %>% 
+  select(year, new.totaln = totaln) %>% 
+  left_join(df_src, ., by = c("totaln" = "new.totaln")) %>% 
+#  mutate(time = sprintf("%02d-%02d",year,month)) %>% 
+  mutate(time = year+(month-1)/12) %>% 
+  relocate(time, year) %>% 
+  do(.,.) -> df_wTime
+```
+
+```{r make_months}
+df_wTime %>% 
+  group_by(time) %>% 
+  summarise(across(everything(), mean, na.rm=TRUE), n_rows = n(), .groups = "drop") %>%
+  do(.,.) -> df_grouped
 ```
 
 
+```{r}
+df_grouped %>% 
+  ggplot(aes(x=time, y=length)) + geom_point()
+```
 
 
 
